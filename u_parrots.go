@@ -345,7 +345,7 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 				&UtlsCompressCertExtension{[]CertCompressionAlgo{
 					CertCompressionBrotli,
 				}},
-				&GenericExtension{Id: 0x4469}, // WARNING: UNKNOWN EXTENSION, USE AT YOUR OWN RISK
+				&GenericExtension{Id: 0x4469, Data: []byte{0x00, 0x03, 0x02, 0x68, 0x32}}, // WARNING: UNKNOWN EXTENSION, USE AT YOUR OWN RISK
 				&UtlsGREASEExtension{},
 				&UtlsPaddingExtension{GetPaddingLen: BoringPaddingStyle},
 			},
@@ -743,7 +743,6 @@ func (uconn *UConn) ApplyPreset(p *ClientHelloSpec) error {
 			}
 		}
 	}
-
 
 	return nil
 }
