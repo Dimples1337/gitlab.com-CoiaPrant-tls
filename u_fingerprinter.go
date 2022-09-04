@@ -141,9 +141,6 @@ func (f *Fingerprinter) FingerprintClientHello(data []byte) (*ClientHelloSpec, e
 				clientHelloSpec.Extensions = append(clientHelloSpec.Extensions, &SNIExtension{})
 
 			}
-		case extensionNextProtoNeg:
-			// draft-agl-tls-nextprotoneg-04
-			clientHelloSpec.Extensions = append(clientHelloSpec.Extensions, &NPNExtension{})
 
 		case extensionStatusRequest:
 			// RFC 4366, Section 3.6
@@ -295,10 +292,6 @@ func (f *Fingerprinter) FingerprintClientHello(data []byte) (*ClientHelloSpec, e
 				return nil, errors.New("unable to read PSK extension data")
 			}
 			clientHelloSpec.Extensions = append(clientHelloSpec.Extensions, &PSKKeyExchangeModesExtension{pskModes})
-
-		case utlsExtensionExtendedMasterSecret:
-			// https://tools.ietf.org/html/rfc7627
-			clientHelloSpec.Extensions = append(clientHelloSpec.Extensions, &UtlsExtendedMasterSecretExtension{})
 
 		case utlsExtensionPadding:
 			clientHelloSpec.Extensions = append(clientHelloSpec.Extensions, &UtlsPaddingExtension{GetPaddingLen: BoringPaddingStyle})

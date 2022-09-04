@@ -5,6 +5,7 @@
 package tls
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"hash"
@@ -16,10 +17,12 @@ import (
 // ClientHandshakeState will be converted into and from either
 //   - clientHandshakeState      (TLS 1.2)
 //   - clientHandshakeStateTLS13 (TLS 1.3)
+//
 // uTLS will call .handshake() on one of these private internal states,
 // to perform TLS handshake using standard crypto/tls implementation.
 type ClientHandshakeState struct {
 	C            *Conn
+	Ctx          context.Context
 	ServerHello  *ServerHelloMsg
 	Hello        *ClientHelloMsg
 	MasterSecret []byte
@@ -56,6 +59,7 @@ func (chs *ClientHandshakeState) toPrivate13() *clientHandshakeStateTLS13 {
 	} else {
 		return &clientHandshakeStateTLS13{
 			c:           chs.C,
+			ctx:         chs.Ctx,
 			serverHello: chs.ServerHello.getPrivatePtr(),
 			hello:       chs.Hello.getPrivatePtr(),
 			ecdheParams: chs.State13.EcdheParams,
@@ -94,6 +98,7 @@ func (chs13 *clientHandshakeStateTLS13) toPublic13() *ClientHandshakeState {
 		}
 		return &ClientHandshakeState{
 			C:           chs13.c,
+			Ctx:         chs13.ctx,
 			ServerHello: chs13.serverHello.getPublicPtr(),
 			Hello:       chs13.hello.getPublicPtr(),
 
@@ -114,6 +119,7 @@ func (chs *ClientHandshakeState) toPrivate12() *clientHandshakeState {
 	} else {
 		return &clientHandshakeState{
 			c:           chs.C,
+			ctx:         chs.Ctx,
 			serverHello: chs.ServerHello.getPrivatePtr(),
 			hello:       chs.Hello.getPrivatePtr(),
 			suite:       chs.State12.Suite.getPrivatePtr(),
@@ -138,6 +144,7 @@ func (chs12 *clientHandshakeState) toPublic12() *ClientHandshakeState {
 		}
 		return &ClientHandshakeState{
 			C:           chs12.c,
+			Ctx:         chs12.ctx,
 			ServerHello: chs12.serverHello.getPublicPtr(),
 			Hello:       chs12.hello.getPublicPtr(),
 
@@ -235,11 +242,8 @@ type ServerHelloMsg struct {
 	SessionId                    []byte
 	CipherSuite                  uint16
 	CompressionMethod            uint8
-	NextProtoNeg                 bool
-	NextProtos                   []string
 	OcspStapling                 bool
 	Scts                         [][]byte
-	Ems                          bool
 	TicketSupported              bool
 	SecureRenegotiation          []byte
 	SecureRenegotiationSupported bool
@@ -266,11 +270,8 @@ func (shm *ServerHelloMsg) getPrivatePtr() *serverHelloMsg {
 			sessionId:                    shm.SessionId,
 			cipherSuite:                  shm.CipherSuite,
 			compressionMethod:            shm.CompressionMethod,
-			nextProtoNeg:                 shm.NextProtoNeg,
-			nextProtos:                   shm.NextProtos,
 			ocspStapling:                 shm.OcspStapling,
 			scts:                         shm.Scts,
-			ems:                          shm.Ems,
 			ticketSupported:              shm.TicketSupported,
 			secureRenegotiation:          shm.SecureRenegotiation,
 			secureRenegotiationSupported: shm.SecureRenegotiationSupported,
@@ -296,11 +297,8 @@ func (shm *serverHelloMsg) getPublicPtr() *ServerHelloMsg {
 			SessionId:                    shm.sessionId,
 			CipherSuite:                  shm.cipherSuite,
 			CompressionMethod:            shm.compressionMethod,
-			NextProtoNeg:                 shm.nextProtoNeg,
-			NextProtos:                   shm.nextProtos,
 			OcspStapling:                 shm.ocspStapling,
 			Scts:                         shm.scts,
-			Ems:                          shm.ems,
 			TicketSupported:              shm.ticketSupported,
 			SecureRenegotiation:          shm.secureRenegotiation,
 			SecureRenegotiationSupported: shm.secureRenegotiationSupported,
@@ -322,11 +320,9 @@ type ClientHelloMsg struct {
 	SessionId                    []byte
 	CipherSuites                 []uint16
 	CompressionMethods           []uint8
-	NextProtoNeg                 bool
 	ServerName                   string
 	OcspStapling                 bool
 	Scts                         bool
-	Ems                          bool // [UTLS] actually implemented due to its prevalence
 	SupportedCurves              []CurveID
 	SupportedPoints              []uint8
 	TicketSupported              bool
@@ -358,11 +354,9 @@ func (chm *ClientHelloMsg) getPrivatePtr() *clientHelloMsg {
 			sessionId:                    chm.SessionId,
 			cipherSuites:                 chm.CipherSuites,
 			compressionMethods:           chm.CompressionMethods,
-			nextProtoNeg:                 chm.NextProtoNeg,
 			serverName:                   chm.ServerName,
 			ocspStapling:                 chm.OcspStapling,
 			scts:                         chm.Scts,
-			ems:                          chm.Ems,
 			supportedCurves:              chm.SupportedCurves,
 			supportedPoints:              chm.SupportedPoints,
 			ticketSupported:              chm.TicketSupported,
@@ -395,11 +389,9 @@ func (chm *clientHelloMsg) getPublicPtr() *ClientHelloMsg {
 			SessionId:                    chm.sessionId,
 			CipherSuites:                 chm.cipherSuites,
 			CompressionMethods:           chm.compressionMethods,
-			NextProtoNeg:                 chm.nextProtoNeg,
 			ServerName:                   chm.serverName,
 			OcspStapling:                 chm.ocspStapling,
 			Scts:                         chm.scts,
-			Ems:                          chm.ems,
 			SupportedCurves:              chm.supportedCurves,
 			SupportedPoints:              chm.supportedPoints,
 			TicketSupported:              chm.ticketSupported,
@@ -442,8 +434,8 @@ type CipherSuite struct {
 	Ka     func(version uint16) keyAgreement
 	// flags is a bitmask of the suite* values, above.
 	Flags  int
-	Cipher func(key, iv []byte, isRead bool) interface{}
-	Mac    func(version uint16, macKey []byte) macFunction
+	Cipher func(key, iv []byte, isRead bool) any
+	Mac    func(key []byte) hash.Hash
 	Aead   func(key, fixedNonce []byte) aead
 }
 
@@ -635,8 +627,8 @@ type TicketKey struct {
 type TicketKeys []TicketKey
 type ticketKeys []ticketKey
 
-func TicketKeyFromBytes(b [32]byte) TicketKey {
-	tk := ticketKeyFromBytes(b)
+func (c *Config) TicketKeyFromBytes(b [32]byte) TicketKey {
+	tk := c.ticketKeyFromBytes(b)
 	return tk.ToPublic()
 }
 

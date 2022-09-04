@@ -454,7 +454,7 @@ func runUTLSClientTestTLS13(t *testing.T, template *clientTest, hello helloStrat
 }
 
 func (test *clientTest) runUTLS(t *testing.T, write bool, hello helloStrategy, omitSNIExtension bool) {
-	checkOpenSSLVersion(t)
+	checkOpenSSLVersion()
 
 	var clientConn, serverConn net.Conn
 	var recordingConn *recordingConn

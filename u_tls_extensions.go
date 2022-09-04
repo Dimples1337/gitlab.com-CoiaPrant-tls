@@ -19,30 +19,6 @@ type TLSExtension interface {
 	Read(p []byte) (n int, err error) // implements io.Reader
 }
 
-type NPNExtension struct {
-	NextProtos []string
-}
-
-func (e *NPNExtension) writeToUConn(uc *UConn) error {
-	uc.config.NextProtos = e.NextProtos
-	uc.HandshakeState.Hello.NextProtoNeg = true
-	return nil
-}
-
-func (e *NPNExtension) Len() int {
-	return 4
-}
-
-func (e *NPNExtension) Read(b []byte) (int, error) {
-	if len(b) < e.Len() {
-		return 0, io.ErrShortBuffer
-	}
-	b[0] = byte(extensionNextProtoNeg >> 8)
-	b[1] = byte(extensionNextProtoNeg & 0xff)
-	// The length is always 0
-	return e.Len(), io.EOF
-}
-
 type SNIExtension struct {
 	ServerName string // not an array because go crypto/tls doesn't support multiple SNIs
 }
@@ -381,42 +357,6 @@ func (e *GenericExtension) Read(b []byte) (int, error) {
 		copy(b[4:], e.Data)
 	}
 	return e.Len(), io.EOF
-}
-
-type UtlsExtendedMasterSecretExtension struct {
-}
-
-// TODO: update when this extension is implemented in crypto/tls
-// but we probably won't have to enable it in Config
-func (e *UtlsExtendedMasterSecretExtension) writeToUConn(uc *UConn) error {
-	uc.HandshakeState.Hello.Ems = true
-	return nil
-}
-
-func (e *UtlsExtendedMasterSecretExtension) Len() int {
-	return 4
-}
-
-func (e *UtlsExtendedMasterSecretExtension) Read(b []byte) (int, error) {
-	if len(b) < e.Len() {
-		return 0, io.ErrShortBuffer
-	}
-	// https://tools.ietf.org/html/rfc7627
-	b[0] = byte(utlsExtensionExtendedMasterSecret >> 8)
-	b[1] = byte(utlsExtensionExtendedMasterSecret)
-	// The length is 0
-	return e.Len(), io.EOF
-}
-
-var extendedMasterSecretLabel = []byte("extended master secret")
-
-// extendedMasterFromPreMasterSecret generates the master secret from the pre-master
-// secret and session hash. See https://tools.ietf.org/html/rfc7627#section-4
-func extendedMasterFromPreMasterSecret(version uint16, suite *cipherSuite, preMasterSecret []byte, fh finishedHash) []byte {
-	sessionHash := fh.Sum()
-	masterSecret := make([]byte, masterSecretLength)
-	prfForVersion(version, suite)(masterSecret, preMasterSecret, extendedMasterSecretLabel, sessionHash)
-	return masterSecret
 }
 
 // GREASE stinks with dead parrots, have to be super careful, and, if possible, not include GREASE

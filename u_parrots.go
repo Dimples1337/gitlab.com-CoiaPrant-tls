@@ -41,7 +41,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 				&UtlsGREASEExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&SessionTicketExtension{},
 				&SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []SignatureScheme{
 					ECDSAWithP256AndSHA256,
@@ -96,7 +95,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 				&UtlsGREASEExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&SessionTicketExtension{},
 				&SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []SignatureScheme{
 					ECDSAWithP256AndSHA256,
@@ -165,7 +163,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			Extensions: []TLSExtension{
 				&UtlsGREASEExtension{},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SupportedCurvesExtension{[]CurveID{
 					CurveID(GREASE_PLACEHOLDER),
@@ -238,7 +235,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			Extensions: []TLSExtension{
 				&UtlsGREASEExtension{},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SupportedCurvesExtension{[]CurveID{
 					CurveID(GREASE_PLACEHOLDER),
@@ -310,7 +306,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			Extensions: []TLSExtension{
 				&UtlsGREASEExtension{},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SupportedCurvesExtension{[]CurveID{
 					CurveID(GREASE_PLACEHOLDER),
@@ -379,7 +374,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			CompressionMethods: []byte{compressionNone},
 			Extensions: []TLSExtension{
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SupportedCurvesExtension{[]CurveID{X25519, CurveP256, CurveP384, CurveP521}},
 				&SupportedPointsExtension{SupportedPoints: []byte{pointFormatUncompressed}},
@@ -432,7 +426,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			},
 			Extensions: []TLSExtension{
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SupportedCurvesExtension{[]CurveID{
 					X25519,
@@ -506,7 +499,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			Extensions: []TLSExtension{
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []SignatureScheme{
 					ECDSAWithP256AndSHA256,
 					PSSWithSHA256,
@@ -519,7 +511,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 					PKCS1WithSHA1,
 				}},
 				&StatusRequestExtension{},
-				&NPNExtension{},
 				&SCTExtension{},
 				&ALPNExtension{AlpnProtocols: []string{"h2", "h2-16", "h2-15", "h2-14", "spdy/3.1", "spdy/3", "http/1.1"}},
 				&SupportedPointsExtension{SupportedPoints: []byte{
@@ -566,7 +557,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 			Extensions: []TLSExtension{
 				&RenegotiationInfoExtension{Renegotiation: RenegotiateOnceAsClient},
 				&SNIExtension{},
-				&UtlsExtendedMasterSecretExtension{},
 				&SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []SignatureScheme{
 					ECDSAWithP256AndSHA256,
 					PSSWithSHA256,
@@ -581,7 +571,6 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 					PKCS1WithSHA1,
 				}},
 				&StatusRequestExtension{},
-				&NPNExtension{},
 				&SCTExtension{},
 				&ALPNExtension{AlpnProtocols: []string{"h2", "h2-16", "h2-15", "h2-14", "spdy/3.1", "spdy/3", "http/1.1"}},
 				&SupportedPointsExtension{SupportedPoints: []byte{
@@ -657,7 +646,7 @@ func (uconn *UConn) ApplyPreset(p *ClientHelloSpec) error {
 			strconv.Itoa(len(hello.Random)) + " bytes")
 	}
 	if len(hello.CipherSuites) == 0 {
-		hello.CipherSuites = defaultCipherSuites()
+		hello.CipherSuites = defaultCipherSuites
 	}
 	if len(hello.CompressionMethods) == 0 {
 		hello.CompressionMethods = []uint8{compressionNone}
@@ -687,9 +676,6 @@ func (uconn *UConn) ApplyPreset(p *ClientHelloSpec) error {
 	uconn.GetSessionID = p.GetSessionID
 	uconn.Extensions = make([]TLSExtension, len(p.Extensions))
 	copy(uconn.Extensions, p.Extensions)
-
-	// Check whether NPN extension actually exists
-	var haveNPN bool
 
 	// reGrease, and point things to each other
 	for _, e := range uconn.Extensions {
@@ -755,14 +741,9 @@ func (uconn *UConn) ApplyPreset(p *ClientHelloSpec) error {
 					ext.Versions[i] = GetBoringGREASEValue(uconn.greaseSeed, ssl_grease_version)
 				}
 			}
-		case *NPNExtension:
-			haveNPN = true
 		}
 	}
 
-	// The default golang behavior in makeClientHello always sets NextProtoNeg if NextProtos is set,
-	// but NextProtos is also used by ALPN and our spec nmay not actually have a NPN extension
-	hello.NextProtoNeg = haveNPN
 
 	return nil
 }
@@ -801,8 +782,8 @@ func (uconn *UConn) generateRandomizedSpec() (ClientHelloSpec, error) {
 		return p, fmt.Errorf("using non-randomized ClientHelloID %v to generate randomized spec", id.Client)
 	}
 
-	p.CipherSuites = make([]uint16, len(defaultCipherSuites()))
-	copy(p.CipherSuites, defaultCipherSuites())
+	p.CipherSuites = make([]uint16, len(defaultCipherSuites))
+	copy(p.CipherSuites, defaultCipherSuites)
 	shuffledSuites, err := shuffledCiphers(r)
 	if err != nil {
 		return p, err
@@ -811,8 +792,8 @@ func (uconn *UConn) generateRandomizedSpec() (ClientHelloSpec, error) {
 	if r.FlipWeightedCoin(0.4) {
 		p.TLSVersMin = VersionTLS10
 		p.TLSVersMax = VersionTLS13
-		tls13ciphers := make([]uint16, len(defaultCipherSuitesTLS13()))
-		copy(tls13ciphers, defaultCipherSuitesTLS13())
+		tls13ciphers := make([]uint16, len(defaultCipherSuitesTLS13))
+		copy(tls13ciphers, defaultCipherSuitesTLS13)
 		r.rand.Shuffle(len(tls13ciphers), func(i, j int) {
 			tls13ciphers[i], tls13ciphers[j] = tls13ciphers[j], tls13ciphers[i]
 		})
@@ -863,7 +844,6 @@ func (uconn *UConn) generateRandomizedSpec() (ClientHelloSpec, error) {
 
 	status := StatusRequestExtension{}
 	sct := SCTExtension{}
-	ems := UtlsExtendedMasterSecretExtension{}
 	points := SupportedPointsExtension{SupportedPoints: []byte{pointFormatUncompressed}}
 
 	curveIDs := []CurveID{}
@@ -910,9 +890,6 @@ func (uconn *UConn) generateRandomizedSpec() (ClientHelloSpec, error) {
 	}
 	if r.FlipWeightedCoin(0.75) {
 		p.Extensions = append(p.Extensions, &reneg)
-	}
-	if r.FlipWeightedCoin(0.77) {
-		p.Extensions = append(p.Extensions, &ems)
 	}
 	if p.TLSVersMax == VersionTLS13 {
 		ks := KeyShareExtension{[]KeyShare{

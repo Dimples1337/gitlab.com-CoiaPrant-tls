@@ -32,6 +32,8 @@ type clientHandshakeState struct {
 	finishedHash finishedHash
 	masterSecret []byte
 	session      *ClientSessionState
+
+	uconn *UConn // [UTLS]
 }
 
 var testingOnlyForceClientHelloSignatureAlgorithms []SignatureScheme

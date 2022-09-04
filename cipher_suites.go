@@ -10,106 +10,23 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/hmac"
-	"gitlab.com/CoiaPrant/tls/boring"
 	"crypto/rc4"
 	"crypto/sha1"
 	"crypto/sha256"
-	"fmt"
 	"hash"
-	"golang.org/x/sys/cpu"
 	"runtime"
+
+	"gitlab.com/CoiaPrant/tls/boring"
+	"golang.org/x/sys/cpu"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
-
-// CipherSuite is a TLS cipher suite. Note that most functions in this package
-// accept and expose cipher suite IDs instead of this type.
-type CipherSuite struct {
-	ID   uint16
-	Name string
-
-	// Supported versions is the list of TLS protocol versions that can
-	// negotiate this cipher suite.
-	SupportedVersions []uint16
-
-	// Insecure is true if the cipher suite has known security issues
-	// due to its primitives, design, or implementation.
-	Insecure bool
-}
 
 var (
 	supportedUpToTLS12 = []uint16{VersionTLS10, VersionTLS11, VersionTLS12}
 	supportedOnlyTLS12 = []uint16{VersionTLS12}
 	supportedOnlyTLS13 = []uint16{VersionTLS13}
 )
-
-// CipherSuites returns a list of cipher suites currently implemented by this
-// package, excluding those with security issues, which are returned by
-// InsecureCipherSuites.
-//
-// The list is sorted by ID. Note that the default cipher suites selected by
-// this package might depend on logic that can't be captured by a static list,
-// and might not match those returned by this function.
-func CipherSuites() []*CipherSuite {
-	return []*CipherSuite{
-		{TLS_RSA_WITH_AES_128_CBC_SHA, "TLS_RSA_WITH_AES_128_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_RSA_WITH_AES_256_CBC_SHA, "TLS_RSA_WITH_AES_256_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_RSA_WITH_AES_128_GCM_SHA256, "TLS_RSA_WITH_AES_128_GCM_SHA256", supportedOnlyTLS12, false},
-		{TLS_RSA_WITH_AES_256_GCM_SHA384, "TLS_RSA_WITH_AES_256_GCM_SHA384", supportedOnlyTLS12, false},
-
-		{TLS_AES_128_GCM_SHA256, "TLS_AES_128_GCM_SHA256", supportedOnlyTLS13, false},
-		{TLS_AES_256_GCM_SHA384, "TLS_AES_256_GCM_SHA384", supportedOnlyTLS13, false},
-		{TLS_CHACHA20_POLY1305_SHA256, "TLS_CHACHA20_POLY1305_SHA256", supportedOnlyTLS13, false},
-
-		{TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", supportedUpToTLS12, false},
-		{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", supportedOnlyTLS12, false},
-		{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", supportedOnlyTLS12, false},
-		{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", supportedOnlyTLS12, false},
-		{TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", supportedOnlyTLS12, false},
-		{TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", supportedOnlyTLS12, false},
-		{TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256", supportedOnlyTLS12, false},
-	}
-}
-
-// InsecureCipherSuites returns a list of cipher suites currently implemented by
-// this package and which have security issues.
-//
-// Most applications should not use the cipher suites in this list, and should
-// only use those returned by CipherSuites.
-func InsecureCipherSuites() []*CipherSuite {
-	// This list includes RC4, CBC_SHA256, and 3DES cipher suites. See
-	// cipherSuitesPreferenceOrder for details.
-	return []*CipherSuite{
-		{TLS_RSA_WITH_RC4_128_SHA, "TLS_RSA_WITH_RC4_128_SHA", supportedUpToTLS12, true},
-		{TLS_RSA_WITH_3DES_EDE_CBC_SHA, "TLS_RSA_WITH_3DES_EDE_CBC_SHA", supportedUpToTLS12, true},
-		{TLS_RSA_WITH_AES_128_CBC_SHA256, "TLS_RSA_WITH_AES_128_CBC_SHA256", supportedOnlyTLS12, true},
-		{TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA", supportedUpToTLS12, true},
-		{TLS_ECDHE_RSA_WITH_RC4_128_SHA, "TLS_ECDHE_RSA_WITH_RC4_128_SHA", supportedUpToTLS12, true},
-		{TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA, "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", supportedUpToTLS12, true},
-		{TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", supportedOnlyTLS12, true},
-		{TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", supportedOnlyTLS12, true},
-	}
-}
-
-// CipherSuiteName returns the standard name for the passed cipher suite ID
-// (e.g. "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"), or a fallback representation
-// of the ID value if the cipher suite is not implemented by this package.
-func CipherSuiteName(id uint16) string {
-	for _, c := range CipherSuites() {
-		if c.ID == id {
-			return c.Name
-		}
-	}
-	for _, c := range InsecureCipherSuites() {
-		if c.ID == id {
-			return c.Name
-		}
-	}
-	return fmt.Sprintf("0x%04X", id)
-}
 
 const (
 	// suiteECDHE indicates that the cipher suite involves elliptic curve
