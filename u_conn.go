@@ -179,6 +179,7 @@ func (uconn *UConn) SetClientRandom(r []byte) error {
 	} else {
 		uconn.BuildHandshakeState()
 		uconn.HandshakeState.Hello.Random = r
+		uconn.MarshalClientHello()
 		return nil
 	}
 }
