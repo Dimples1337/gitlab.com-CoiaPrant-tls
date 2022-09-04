@@ -82,15 +82,11 @@ func UServer(conn net.Conn, config *Config) *UConn {
 // amd should only be called explicitly to inspect/change fields of
 // default/mimicked ClientHello.
 func (uconn *UConn) BuildHandshakeState() error {
-	if !uconn.ClientHelloBuilt {
+	if uconn.ClientHelloBuilt {
 		return nil
 	}
 
 	if uconn.ClientHelloID == HelloGolang {
-		if uconn.ClientHelloBuilt {
-			return nil
-		}
-
 		// use default Golang ClientHello.
 		hello, ecdheParams, err := uconn.makeClientHello()
 		if err != nil {
