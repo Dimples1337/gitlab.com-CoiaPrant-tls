@@ -89,6 +89,7 @@ const (
 	extensionSupportedPoints         uint16 = 11
 	extensionSignatureAlgorithms     uint16 = 13
 	extensionALPN                    uint16 = 16
+	extensionALPS                    uint16 = 0X4469
 	extensionSCT                     uint16 = 18
 	extensionSessionTicket           uint16 = 35
 	extensionPreSharedKey            uint16 = 41
