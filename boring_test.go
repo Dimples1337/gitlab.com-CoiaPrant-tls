@@ -9,7 +9,7 @@ package tls
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/internal/boring/fipstls"
+	"gitlab.com/CoiaPrant/tls/boring/fipstls"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
