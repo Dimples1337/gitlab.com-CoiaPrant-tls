@@ -6,6 +6,7 @@ package tls
 
 import (
 	"bytes"
+	"encoding/hex"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-var tests = []interface{}{
+var tests = []any{
 	&clientHelloMsg{},
 	&serverHelloMsg{},
 	&finishedMsg{},
@@ -26,7 +27,6 @@ var tests = []interface{}{
 	},
 	&certificateStatusMsg{},
 	&clientKeyExchangeMsg{},
-	&nextProtoMsg{},
 	&newSessionTicketMsg{},
 	&sessionState{},
 	&sessionStateTLS13{},
@@ -36,7 +36,6 @@ var tests = []interface{}{
 	&newSessionTicketMsgTLS13{},
 	&certificateRequestMsgTLS13{},
 	&certificateMsgTLS13{},
-	&compressedCertificateMsg{}, // [UTLS]
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
@@ -129,9 +128,6 @@ func (*clientHelloMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 	}
 	m.compressionMethods = randomBytes(rand.Intn(63)+1, rand)
 	if rand.Intn(10) > 5 {
-		m.nextProtoNeg = true
-	}
-	if rand.Intn(10) > 5 {
 		m.serverName = randomString(rand.Intn(255), rand)
 		for strings.HasSuffix(m.serverName, ".") {
 			m.serverName = m.serverName[:len(m.serverName)-1]
@@ -152,10 +148,10 @@ func (*clientHelloMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 		}
 	}
 	if rand.Intn(10) > 5 {
-		m.supportedSignatureAlgorithms = supportedSignatureAlgorithms
+		m.supportedSignatureAlgorithms = supportedSignatureAlgorithms()
 	}
 	if rand.Intn(10) > 5 {
-		m.supportedSignatureAlgorithmsCert = supportedSignatureAlgorithms
+		m.supportedSignatureAlgorithmsCert = supportedSignatureAlgorithms()
 	}
 	for i := 0; i < rand.Intn(5); i++ {
 		m.alpnProtocols = append(m.alpnProtocols, randomString(rand.Intn(20)+1, rand))
@@ -206,13 +202,7 @@ func (*serverHelloMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 	m.sessionId = randomBytes(rand.Intn(32), rand)
 	m.cipherSuite = uint16(rand.Int31())
 	m.compressionMethod = uint8(rand.Intn(256))
-
-	if rand.Intn(10) > 5 {
-		m.nextProtoNeg = true
-		for i := 0; i < rand.Intn(10); i++ {
-			m.nextProtos = append(m.nextProtos, randomString(20, rand))
-		}
-	}
+	m.supportedPoints = randomBytes(rand.Intn(5)+1, rand)
 
 	if rand.Intn(10) > 5 {
 		m.ocspStapling = true
@@ -309,12 +299,6 @@ func (*finishedMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 	return reflect.ValueOf(m)
 }
 
-func (*nextProtoMsg) Generate(rand *rand.Rand, size int) reflect.Value {
-	m := &nextProtoMsg{}
-	m.proto = randomString(rand.Intn(255), rand)
-	return reflect.ValueOf(m)
-}
-
 func (*newSessionTicketMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 	m := &newSessionTicketMsg{}
 	m.ticket = randomBytes(rand.Intn(4), rand)
@@ -325,11 +309,10 @@ func (*sessionState) Generate(rand *rand.Rand, size int) reflect.Value {
 	s := &sessionState{}
 	s.vers = uint16(rand.Intn(10000))
 	s.cipherSuite = uint16(rand.Intn(10000))
-	s.masterSecret = randomBytes(rand.Intn(100), rand)
-	numCerts := rand.Intn(20)
-	s.certificates = make([][]byte, numCerts)
-	for i := 0; i < numCerts; i++ {
-		s.certificates[i] = randomBytes(rand.Intn(10)+1, rand)
+	s.masterSecret = randomBytes(rand.Intn(100)+1, rand)
+	s.createdAt = uint64(rand.Int63())
+	for i := 0; i < rand.Intn(20); i++ {
+		s.certificates = append(s.certificates, randomBytes(rand.Intn(500)+1, rand))
 	}
 	return reflect.ValueOf(s)
 }
@@ -387,10 +370,10 @@ func (*certificateRequestMsgTLS13) Generate(rand *rand.Rand, size int) reflect.V
 		m.scts = true
 	}
 	if rand.Intn(10) > 5 {
-		m.supportedSignatureAlgorithms = supportedSignatureAlgorithms
+		m.supportedSignatureAlgorithms = supportedSignatureAlgorithms()
 	}
 	if rand.Intn(10) > 5 {
-		m.supportedSignatureAlgorithmsCert = supportedSignatureAlgorithms
+		m.supportedSignatureAlgorithmsCert = supportedSignatureAlgorithms()
 	}
 	if rand.Intn(10) > 5 {
 		m.certificateAuthorities = make([][]byte, 3)
@@ -418,15 +401,6 @@ func (*certificateMsgTLS13) Generate(rand *rand.Rand, size int) reflect.Value {
 				m.certificate.SignedCertificateTimestamps, randomBytes(rand.Intn(500)+1, rand))
 		}
 	}
-	return reflect.ValueOf(m)
-}
-
-// [UTLS]
-func (*compressedCertificateMsg) Generate(rand *rand.Rand, size int) reflect.Value {
-	m := &compressedCertificateMsg{}
-	m.algorithm = uint16(rand.Intn(2 << 15))
-	m.uncompressedLength = uint32(rand.Intn(2 << 23))
-	m.compressedCertificateMessage = randomBytes(rand.Intn(500)+1, rand)
 	return reflect.ValueOf(m)
 }
 
@@ -488,5 +462,25 @@ func TestRejectEmptySCT(t *testing.T) {
 	var serverHelloCopy serverHelloMsg
 	if serverHelloCopy.unmarshal(serverHelloBytes) {
 		t.Fatal("Unmarshaled ServerHello with zero-length SCT")
+	}
+}
+
+func TestRejectDuplicateExtensions(t *testing.T) {
+	clientHelloBytes, err := hex.DecodeString("010000440303000000000000000000000000000000000000000000000000000000000000000000000000001c0000000a000800000568656c6c6f0000000a000800000568656c6c6f")
+	if err != nil {
+		t.Fatalf("failed to decode test ClientHello: %s", err)
+	}
+	var clientHelloCopy clientHelloMsg
+	if clientHelloCopy.unmarshal(clientHelloBytes) {
+		t.Error("Unmarshaled ClientHello with duplicate extensions")
+	}
+
+	serverHelloBytes, err := hex.DecodeString("02000030030300000000000000000000000000000000000000000000000000000000000000000000000000080005000000050000")
+	if err != nil {
+		t.Fatalf("failed to decode test ServerHello: %s", err)
+	}
+	var serverHelloCopy serverHelloMsg
+	if serverHelloCopy.unmarshal(serverHelloBytes) {
+		t.Fatal("Unmarshaled ServerHello with duplicate extensions")
 	}
 }
