@@ -82,11 +82,11 @@ func UServer(conn net.Conn, config *Config) *UConn {
 // amd should only be called explicitly to inspect/change fields of
 // default/mimicked ClientHello.
 func (uconn *UConn) BuildHandshakeState() error {
-	if uconn.ClientHelloBuilt {
-		return nil
-	}
-
 	if uconn.ClientHelloID == HelloGolang {
+		if uconn.ClientHelloBuilt {
+			return nil
+		}
+
 		// use default Golang ClientHello.
 		hello, ecdheParams, err := uconn.makeClientHello()
 		if err != nil {
@@ -97,15 +97,17 @@ func (uconn *UConn) BuildHandshakeState() error {
 		uconn.HandshakeState.State13.EcdheParams = ecdheParams
 		uconn.HandshakeState.C = uconn.Conn
 	} else {
-		err := uconn.applyPresetByID(uconn.ClientHelloID)
-		if err != nil {
-			return err
-		}
-		if uconn.omitSNIExtension {
-			uconn.removeSNIExtension()
+		if !uconn.ClientHelloBuilt {
+			err := uconn.applyPresetByID(uconn.ClientHelloID)
+			if err != nil {
+				return err
+			}
+			if uconn.omitSNIExtension {
+				uconn.removeSNIExtension()
+			}
 		}
 
-		err = uconn.ApplyConfig()
+		err := uconn.ApplyConfig()
 		if err != nil {
 			return err
 		}
@@ -176,8 +178,7 @@ func (uconn *UConn) SetClientRandom(r []byte) error {
 		return errors.New("Incorrect client random length! Expected: 32, got: " + strconv.Itoa(len(r)))
 	} else {
 		uconn.BuildHandshakeState()
-		uconn.HandshakeState.Hello.Random = make([]byte, 32)
-		copy(uconn.HandshakeState.Hello.Random, r)
+		uconn.HandshakeState.Hello.Random = r
 		return nil
 	}
 }
