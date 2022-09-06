@@ -339,7 +339,7 @@ type ClientHelloMsg struct {
 	KeyShares                        []KeyShare
 	EarlyData                        bool
 	PskModes                         []uint8
-	PskIdentities                    []pskIdentity
+	PskIdentities                    []PskIdentity
 	PskBinders                       [][]byte
 }
 
@@ -372,7 +372,7 @@ func (chm *ClientHelloMsg) getPrivatePtr() *clientHelloMsg {
 			keyShares:                        KeyShares(chm.KeyShares).ToPrivate(),
 			earlyData:                        chm.EarlyData,
 			pskModes:                         chm.PskModes,
-			pskIdentities:                    chm.PskIdentities,
+			pskIdentities:                    PskIdentities(chm.PskIdentities).ToPrivate(),
 			pskBinders:                       chm.PskBinders,
 		}
 	}
@@ -407,7 +407,7 @@ func (chm *clientHelloMsg) getPublicPtr() *ClientHelloMsg {
 			KeyShares:                        keyShares(chm.keyShares).ToPublic(),
 			EarlyData:                        chm.earlyData,
 			PskModes:                         chm.pskModes,
-			PskIdentities:                    chm.pskIdentities,
+			PskIdentities:                    pskIdentities(chm.pskIdentities).ToPublic(),
 			PskBinders:                       chm.pskBinders,
 		}
 	}
@@ -545,6 +545,31 @@ func (KSS KeyShares) ToPrivate() []keyShare {
 		kss = append(kss, keyShare{data: KS.Data, group: KS.Group})
 	}
 	return kss
+}
+
+// TLS 1.3 PSK Identity. Can be a Session Ticket, or a reference to a saved
+// session. See RFC 8446, Section 4.2.11.
+type PskIdentity struct {
+	Label               []byte
+	ObfuscatedTicketAge uint32
+}
+
+type pskIdentities []pskIdentity
+type PskIdentities []PskIdentity
+
+func (pis pskIdentities) ToPublic() []PskIdentity {
+	var PIS []PskIdentity
+	for _, pi := range pis {
+		PIS = append(PIS, PskIdentity{Label: pi.label, ObfuscatedTicketAge: pi.obfuscatedTicketAge})
+	}
+	return PIS
+}
+func (PIS PskIdentities) ToPrivate() []pskIdentity {
+	var pis []pskIdentity
+	for _, PI := range PIS {
+		pis = append(pis, pskIdentity{label: PI.Label, obfuscatedTicketAge: PI.ObfuscatedTicketAge})
+	}
+	return pis
 }
 
 // ClientSessionState is public, but all its fields are private. Let's add setters, getters and constructor
