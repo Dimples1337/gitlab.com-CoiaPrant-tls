@@ -59,9 +59,8 @@ func UServer(conn net.Conn, config *Config) *UConn {
 	if config == nil {
 		config = &Config{}
 	}
-	tlsConn := Conn{conn: conn, config: config, isClient: true}
-	handshakeState := ClientHandshakeState{C: &tlsConn, Hello: &ClientHelloMsg{}}
-	uconn := UConn{Conn: &tlsConn, HandshakeState: handshakeState}
+	tlsConn := Conn{conn: conn, config: config}
+	uconn := UConn{Conn: &tlsConn}
 	uconn.HandshakeState.uconn = &uconn
 	return &uconn
 }
@@ -82,6 +81,10 @@ func UServer(conn net.Conn, config *Config) *UConn {
 // amd should only be called explicitly to inspect/change fields of
 // default/mimicked ClientHello.
 func (uconn *UConn) BuildHandshakeState() error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+
 	if uconn.ClientHelloID == HelloGolang {
 		if uconn.ClientHelloBuilt {
 			return nil
@@ -126,6 +129,10 @@ func (uconn *UConn) BuildHandshakeState() error {
 // but the extension itself still MAY be present for mimicking purposes.
 // Session tickets to be reused - use same cache on following connections.
 func (uconn *UConn) SetSessionState(session *ClientSessionState) error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+
 	uconn.HandshakeState.Session = session
 	var sessionTicket []uint8
 	if session != nil {
@@ -162,6 +169,10 @@ func (uconn *UConn) SetSessionState(session *ClientSessionState) error {
 
 // If you want session tickets to be reused - use same cache on following connections
 func (uconn *UConn) SetSessionCache(cache ClientSessionCache) {
+	if !uconn.isClient {
+		return
+	}
+
 	uconn.config.ClientSessionCache = cache
 	uconn.HandshakeState.Hello.TicketSupported = true
 }
@@ -185,6 +196,10 @@ func (uconn *UConn) SetClientRandom(r []byte) error {
 }
 
 func (uconn *UConn) SetSNI(sni string) {
+	if !uconn.isClient {
+		return
+	}
+
 	hname := hostnameInSNI(sni)
 	uconn.config.ServerName = hname
 	for _, ext := range uconn.Extensions {
@@ -198,6 +213,10 @@ func (uconn *UConn) SetSNI(sni string) {
 // RemoveSNIExtension removes SNI from the list of extensions sent in ClientHello
 // It returns an error when used with HelloGolang ClientHelloID
 func (uconn *UConn) RemoveSNIExtension() error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+
 	if uconn.ClientHelloID == HelloGolang {
 		return fmt.Errorf("Cannot call RemoveSNIExtension on a UConn with a HelloGolang ClientHelloID")
 	}
@@ -206,6 +225,10 @@ func (uconn *UConn) RemoveSNIExtension() error {
 }
 
 func (uconn *UConn) removeSNIExtension() {
+	if !uconn.isClient {
+		return
+	}
+
 	filteredExts := make([]TLSExtension, 0, len(uconn.Extensions))
 	for _, e := range uconn.Extensions {
 		if _, ok := e.(*SNIExtension); !ok {
@@ -245,11 +268,12 @@ func (c *UConn) GetClientHello() (clientHello *ClientHelloMsg, err error) {
 }
 
 func (c *UConn) SetClientHello(clientHello *ClientHelloMsg) {
-	if c.isClient {
-		c.BuildHandshakeState()
-		c.HandshakeState.Hello = clientHello
+	if !c.isClient {
+		return
 	}
-	return
+
+	c.BuildHandshakeState()
+	c.HandshakeState.Hello = clientHello
 }
 
 // Handshake runs the client or server handshake
@@ -588,6 +612,10 @@ func (c *UConn) serverHandshake(ctx context.Context) error {
 }
 
 func (uconn *UConn) ApplyConfig() error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+
 	for _, ext := range uconn.Extensions {
 		err := ext.writeToUConn(uconn)
 		if err != nil {
@@ -598,6 +626,10 @@ func (uconn *UConn) ApplyConfig() error {
 }
 
 func (uconn *UConn) MarshalClientHello() error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+
 	hello := uconn.HandshakeState.Hello
 	headerLength := 2 + 32 + 1 + len(hello.SessionId) +
 		2 + len(hello.CipherSuites)*2 +
@@ -694,6 +726,10 @@ func (uconn *UConn) GetOutKeystream(length int) ([]byte, error) {
 // Error is only returned if things are in clearly undesirable state
 // to help user fix them.
 func (uconn *UConn) SetTLSVers(minTLSVers, maxTLSVers uint16, specExtensions []TLSExtension) error {
+	if !uconn.isClient {
+		return errors.New("not client")
+	}
+	
 	if minTLSVers == 0 && maxTLSVers == 0 {
 		// if version is not set explicitly in the ClientHelloSpec, check the SupportedVersions extension
 		supportedVersionsExtensionsPresent := 0
