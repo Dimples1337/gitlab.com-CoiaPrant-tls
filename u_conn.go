@@ -360,9 +360,11 @@ func (c *UConn) handshakeContext(ctx context.Context) (ret error) {
 
 	if c.isClient {
 		// [uTLS section begins]
-		err := c.BuildHandshakeState()
-		if err != nil {
-			return err
+		if !c.ClientHelloBuilt {
+			err := c.BuildHandshakeState()
+			if err != nil {
+				return err
+			}
 		}
 		// [uTLS section ends]
 
@@ -630,6 +632,10 @@ func (uconn *UConn) MarshalClientHello() error {
 		return errors.New("not client")
 	}
 
+	if uconn.ClientHelloID == HelloGolang {
+		return nil
+	}
+
 	hello := uconn.HandshakeState.Hello
 	headerLength := 2 + 32 + 1 + len(hello.SessionId) +
 		2 + len(hello.CipherSuites)*2 +
@@ -729,7 +735,7 @@ func (uconn *UConn) SetTLSVers(minTLSVers, maxTLSVers uint16, specExtensions []T
 	if !uconn.isClient {
 		return errors.New("not client")
 	}
-	
+
 	if minTLSVers == 0 && maxTLSVers == 0 {
 		// if version is not set explicitly in the ClientHelloSpec, check the SupportedVersions extension
 		supportedVersionsExtensionsPresent := 0

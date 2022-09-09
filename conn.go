@@ -825,7 +825,7 @@ func (c *Conn) sendAlertLocked(err alert) error {
 		// closeNotify is a special case in that it isn't an error.
 		return writeErr
 	}
-
+	//panic(err)
 	return c.out.setErrorLocked(&net.OpError{Op: "local error", Err: err})
 }
 

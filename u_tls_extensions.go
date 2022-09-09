@@ -24,9 +24,10 @@ type SNIExtension struct {
 }
 
 func (e *SNIExtension) writeToUConn(uc *UConn) error {
-	uc.config.ServerName = e.ServerName
 	hostName := hostnameInSNI(e.ServerName)
+	uc.config.ServerName = hostName
 	uc.HandshakeState.Hello.ServerName = hostName
+	uc.serverName = hostName
 
 	return nil
 }
@@ -275,7 +276,7 @@ type ALPSExtension struct {
 	Settings []string
 }
 
-func (e * ALPSExtension) writeToUConn(uc *UConn) error {
+func (e *ALPSExtension) writeToUConn(uc *UConn) error {
 	return nil
 }
 
@@ -314,7 +315,6 @@ func (e *ALPSExtension) Read(b []byte) (int, error) {
 
 	return e.Len(), io.EOF
 }
-
 
 type SCTExtension struct {
 }
@@ -601,7 +601,15 @@ func (e *KeyShareExtension) Read(b []byte) (int, error) {
 }
 
 func (e *KeyShareExtension) writeToUConn(uc *UConn) error {
-	uc.HandshakeState.Hello.KeyShares = e.KeyShares
+	var KeyShares []KeyShare
+	for _, KS := range e.KeyShares {
+		if len(KS.Data) > 1 {
+			KeyShares = append(KeyShares, KS)
+		}
+
+	}
+
+	uc.HandshakeState.Hello.KeyShares = KeyShares
 	return nil
 }
 
