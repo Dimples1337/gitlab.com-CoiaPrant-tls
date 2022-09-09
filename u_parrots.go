@@ -342,6 +342,9 @@ func utlsIdToSpec(id ClientHelloID) (ClientHelloSpec, error) {
 					VersionTLS13,
 					VersionTLS12,
 				}},
+				&UtlsCompressCertExtension{[]CertCompressionAlgo{
+					CertCompressionBrotli,
+				}},
 				&ALPSExtension{Settings: []string{"h2"}},
 				&UtlsGREASEExtension{},
 				&UtlsPaddingExtension{GetPaddingLen: BoringPaddingStyle},
